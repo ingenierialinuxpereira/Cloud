@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GCP Services Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f8fafc; --surface:#ffffff; --surface-2:#f1f5f9;
+    --text:#0f172a; --text-muted:#64748b; --border:#e2e8f0;
+    --accent:#2563eb; --accent-soft:#dbeafe;
+    --green:#059669; --green-bg:#d1fae5;
+    --amber:#b45309; --amber-bg:#fef3c7;
+    --gray:#475569;  --gray-bg:#e2e8f0;
+    --shadow:0 1px 3px rgba(15,23,42,.08),0 4px 14px rgba(15,23,42,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f172a; --surface:#1e293b; --surface-2:#293548;
+      --text:#f1f5f9; --text-muted:#94a3b8; --border:#334155;
+      --accent:#60a5fa; --accent-soft:#1e3a5f;
+      --green:#34d399; --green-bg:#064e3b;
+      --amber:#fbbf24; --amber-bg:#453411;
+      --gray:#cbd5e1;  --gray-bg:#334155;
+      --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+       font-family:'Inter',system-ui,-apple-system,sans-serif;
+       font-size:15px;line-height:1.55;padding:32px 20px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header.hero{margin-bottom:28px}
+  .hero h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
+  .hero p{color:var(--text-muted);margin-top:4px;font-size:14px}
+  .hero code{font-family:'JetBrains Mono',monospace;font-size:13px;
+             background:var(--surface-2);padding:2px 7px;border-radius:6px}
+
+  /* --- key metrics grid --- */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+           gap:14px;margin:22px 0 30px}
+  .metric{background:var(--surface);border:1px solid var(--border);
+          border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+  .metric .num{font-size:30px;font-weight:800;letter-spacing:-.03em}
+  .metric .lbl{color:var(--text-muted);font-size:12.5px;font-weight:600;
+               text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+  .metric.m-active .num{color:var(--green)}
+  .metric.m-regions .num{color:#06b6d4}
+  .metric.m-filtered .num{color:var(--text-muted)}
+
+  /* --- tabs --- */
+  .tabbar{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--border);
+          padding-bottom:10px;margin-bottom:22px}
+  .tabbar button{font:inherit;font-weight:600;font-size:13.5px;cursor:pointer;
+          color:var(--text-muted);background:transparent;border:1px solid transparent;
+          padding:7px 14px;border-radius:9px;transition:all .15s ease}
+  .tabbar button:hover{background:var(--surface-2);color:var(--text)}
+  .tabbar button.active{background:var(--accent-soft);color:var(--accent);
+          border-color:var(--accent)}
+  .panel{display:none;animation:fade .18s ease}
+  .panel.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* --- tables --- */
+  .card{background:var(--surface);border:1px solid var(--border);
+        border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:22px}
+  .card h2{font-size:16px;font-weight:700;padding:16px 20px;
+           border-bottom:1px solid var(--border)}
+  .card h2 small{color:var(--text-muted);font-weight:500;font-size:13px;margin-left:8px}
+  .card h2 img{width:18px;height:18px;vertical-align:-3px;margin-right:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{background:var(--surface-2);color:var(--text-muted);text-align:left;
+     font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+     padding:10px 20px}
+  td{padding:11px 20px;border-top:1px solid var(--border);vertical-align:middle}
+  td.api{font-family:'JetBrains Mono',monospace;font-size:13px}
+  tr:hover td{background:var(--surface-2)}
+
+  /* --- badges --- */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;
+         font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .badge img{width:12px;height:12px;display:block}
+  .metric img{width:24px;height:24px;margin-bottom:8px;display:block}
+  .hero-row{display:flex;align-items:center;gap:14px}
+  .hero-row img{width:44px;height:44px}
+  .b-active{color:var(--green);background:var(--green-bg)}
+  .b-passive{color:var(--amber);background:var(--amber-bg)}
+  .b-enabled{color:var(--gray);background:var(--gray-bg)}
+  .b-system{color:var(--text-muted);background:transparent;
+            border:1px dashed var(--border)}
+  tr.baseline td{opacity:.72}
+  .detail{color:var(--text-muted);font-size:13px}
+  .projlink{color:var(--accent);cursor:pointer;font-weight:600;
+            background:none;border:none;font:inherit;padding:0}
+  .projlink:hover{text-decoration:underline}
+  footer{margin-top:34px;color:var(--text-muted);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero"><div class="hero-row"><img src="icons/logo-cloud.svg" alt="GCP Inventory logo"><h1>GCP Services Inventory</h1></div><p>Deep resource scan · 2026-07-10 13:01:17 UTC · account <code>francisco.gutierrez2@amrize.com</code> · Cloud Asset Inventory <strong>not</strong> used</p></header>
+<div class="metrics">
+<div class="metric"><img src="icons/metric-projects.svg" alt=""><div class="num">1</div><div class="lbl">Projects Scanned</div></div>
+<div class="metric"><img src="icons/metric-apis.svg" alt=""><div class="num">86</div><div class="lbl">APIs Discovered</div></div>
+<div class="metric m-active"><img src="icons/metric-active.svg" alt=""><div class="num">6</div><div class="lbl">Active Resource Services</div></div>
+<div class="metric m-regions"><img src="icons/metric-regions.svg" alt=""><div class="num">2</div><div class="lbl">Regions in Use</div></div>
+<div class="metric m-filtered"><img src="icons/metric-system.svg" alt=""><div class="num">15</div><div class="lbl">System / Baseline Services</div></div>
+</div>
+<nav class="tabbar"><button class="active" data-target="summary">Executive Summary</button>
+<button data-target="cat-0">Compute &amp; Containers</button>
+<button data-target="cat-1">AI &amp; Machine Learning</button>
+<button data-target="cat-2">Storage</button>
+<button data-target="cat-3">Databases</button>
+<button data-target="cat-4">Messaging &amp; Integration</button>
+<button data-target="cat-5">Serverless</button>
+<button data-target="cat-6">Data &amp; Analytics</button>
+<button data-target="cat-7">Firebase &amp; Mobile</button>
+<button data-target="cat-8">Networking</button>
+<button data-target="cat-9">Identity &amp; Security</button>
+<button data-target="cat-10">Operations &amp; Monitoring</button>
+<button data-target="cat-11">Other Services</button>
+<button data-target="cat-12">System / Baseline</button>
+</nav>
+<section class="panel active" id="summary">
+<div class="card"><h2><img src="icons/metric-regions.svg" alt="Globe">Regions in Use <small>locations where the deep sub-checks found live resources</small></h2>
+<table><thead><tr><th>Region / Location</th><th>Resources Detected</th><th>Services Using It</th></tr></thead><tbody>
+<tr><td class="api">us-central1</td><td><span class="badge b-active">53</span></td><td class="detail">Cloud Run, Cloud Storage, Compute Engine</td></tr>
+<tr><td class="api">global</td><td><span class="badge b-active">1</span></td><td class="detail">Pub/Sub</td></tr>
+</tbody></table></div>
+<div class="card"><h2>Services by Category <small>click a category to open its tab</small></h2>
+<table><thead><tr><th>Category</th><th>Services</th><th>Active w/ Resources</th><th>Passive / Enabled Only</th><th>System / Baseline</th></tr></thead><tbody>
+<tr><td><button class="projlink" onclick="showTab('cat-0')">Compute &amp; Containers</button></td><td>8</td><td><span class="badge b-active">2</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-1')">AI &amp; Machine Learning</button></td><td>3</td><td><span class="badge b-active">0</span></td><td><span class="badge b-passive">1</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-2')">Storage</button></td><td>2</td><td><span class="badge b-active">1</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-3')">Databases</button></td><td>2</td><td><span class="badge b-active">0</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-4')">Messaging &amp; Integration</button></td><td>3</td><td><span class="badge b-active">1</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-5')">Serverless</button></td><td>1</td><td><span class="badge b-active">1</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-6')">Data &amp; Analytics</button></td><td>5</td><td><span class="badge b-active">0</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-7')">Firebase &amp; Mobile</button></td><td>14</td><td><span class="badge b-active">1</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-8')">Networking</button></td><td>1</td><td><span class="badge b-active">0</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-9')">Identity &amp; Security</button></td><td>4</td><td><span class="badge b-active">0</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-10')">Operations &amp; Monitoring</button></td><td>3</td><td><span class="badge b-active">0</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-11')">Other Services</button></td><td>25</td><td><span class="badge b-active">0</span></td><td><span class="badge b-passive">0</span></td><td class="detail">0</td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-12')">System / Baseline</button></td><td>15</td><td><span class="badge b-active">0</span></td><td><span class="badge b-passive">0</span></td><td class="detail">15</td></tr>
+</tbody></table></div>
+<div class="card"><h2>Projects <small>per-project rollup</small></h2>
+<table><thead><tr><th>Project</th><th>APIs Enabled</th><th>Active w/ Resources</th><th>Passive / Enabled Only</th><th>System / Baseline</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td>86</td><td><span class="badge b-active">6</span></td><td><span class="badge b-passive">1</span></td><td class="detail">15</td></tr>
+</tbody></table></div>
+</section>
+<section class="panel" id="cat-0">
+<div class="card"><h2>Compute &amp; Containers <small>8 services | 2 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">appengine.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">artifactregistry.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">compute.googleapis.com</td><td>Compute Engine</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">5 VM instance(s) (regions: us-central1)</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">containeranalysis.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">containerregistry.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">osconfig.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">oslogin.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">run.googleapis.com</td><td>Cloud Run</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">42 service(s) (regions: us-central1)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-1">
+<div class="card"><h2>AI &amp; Machine Learning <small>3 services | 0 active | 1 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">aiplatform.googleapis.com</td><td>Vertex AI / Gemini Enterprise</td><td><span class="badge b-passive"><img src="icons/status-passive.svg" alt="">Enabled (No Active Resources Found)</span></td><td class="detail">0 endpoint(s), 0 model(s) (15 regions probed)</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">geminicloudassist.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">geminidataanalytics.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-2">
+<div class="card"><h2>Storage <small>2 services | 1 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebasestorage.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">storage.googleapis.com</td><td>Cloud Storage</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">6 bucket(s) (locations: us-central1)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-3">
+<div class="card"><h2>Databases <small>2 services | 0 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firestore.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">sql-component.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-4">
+<div class="card"><h2>Messaging &amp; Integration <small>3 services | 1 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">cloudscheduler.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">eventarc.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">pubsub.googleapis.com</td><td>Pub/Sub</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">26 topic(s), 23 subscription(s) (global service)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-5">
+<div class="card"><h2>Serverless <small>1 services | 1 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">cloudfunctions.googleapis.com</td><td>Cloud Functions</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">41 function(s) (Gen1+Gen2)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-6">
+<div class="card"><h2>Data &amp; Analytics <small>5 services | 0 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">bigquery.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">bigqueryconnection.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">bigquerydatapolicy.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">bigquerydatatransfer.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">bigqueryreservation.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-7">
+<div class="card"><h2>Firebase &amp; Mobile <small>14 services | 1 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">fcm.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">fcmregistrations.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebase.googleapis.com</td><td>Firebase</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">Project is Firebase-enabled</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebaseappcheck.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebaseappdistribution.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebaseapphosting.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebasedatabase.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebaseextensions.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebasehosting.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebaseinstallations.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebaseremoteconfig.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebaseremoteconfigrealtime.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">firebaserules.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">identitytoolkit.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-8">
+<div class="card"><h2>Networking <small>1 services | 0 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">dns.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-9">
+<div class="card"><h2>Identity &amp; Security <small>4 services | 0 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">certificatemanager.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">recaptchaenterprise.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">secretmanager.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">websecurityscanner.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-10">
+<div class="card"><h2>Operations &amp; Monitoring <small>3 services | 0 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">cloudtrace.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">logging.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">monitoring.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-11">
+<div class="card"><h2>Other Services <small>25 services | 0 active | 0 passive | 0 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>bm-sbx-rocktrak</td><td class="api">androidpublisher.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">cloudaicompanion.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">cloudasset.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">cloudbilling.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">cloudbuild.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">containerscanning.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">containerthreatdetection.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">deploymentmanager.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">developerconnect.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">geocoding-backend.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">maps-android-backend.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">maps-backend.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">maps-ios-backend.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">navigationsdk.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">places.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">playintegrity.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">privilegedaccessmanager.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">roads.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">routes.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">runtimeconfig.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">securetoken.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">source.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">telemetry.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">testing.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+<tr><td>bm-sbx-rocktrak</td><td class="api">weather.googleapis.com</td><td>-</td><td><span class="badge b-enabled"><img src="icons/status-enabled.svg" alt="">Enabled (Not Deep-Checked)</span></td><td class="detail">API enabled; add a sub-check to verify usage</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-12">
+<div class="card"><h2>System / Baseline <small>15 services | 0 active | 0 passive | 15 system</small></h2>
+<table><thead><tr><th>Project</th><th>API / Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">analyticshub.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">bigquerymigration.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">bigquerystorage.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">cloudapis.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">cloudresourcemanager.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">dataform.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">dataplex.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">datastore.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">iam.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">iamcredentials.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">servicemanagement.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">serviceusage.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">storage-api.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">storage-component.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+<tr class="baseline"><td>bm-sbx-rocktrak</td><td class="api">sts.googleapis.com</td><td>-</td><td><span class="badge b-system"><img src="icons/status-system.svg" alt="">System / Baseline (Default)</span></td><td class="detail">Auto-enabled Google infrastructure API required for the project to operate</td></tr>
+</tbody></table></div></section>
+<footer>Generated by gcp_inventory_scan.sh v1.7.0 · Author: DevOps Engineering Team · read-only scan · no Cloud Asset Inventory permissions used</footer>
+</div><!-- /wrap -->
+<script>
+  // Lightweight pure-JS tab switcher
+  function showTab(id, btn){
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tabbar button').forEach(b => b.classList.remove('active'));
+    var panel = document.getElementById(id);
+    if (panel) panel.classList.add('active');
+    if (btn) {
+      btn.classList.add('active');
+    } else {
+      var match = document.querySelector('.tabbar button[data-target="'+id+'"]');
+      if (match) match.classList.add('active');
+    }
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  document.querySelectorAll('.tabbar button').forEach(function(b){
+    b.addEventListener('click', function(){ showTab(b.dataset.target, b); });
+  });
+</script>
+</body>
+</html>
