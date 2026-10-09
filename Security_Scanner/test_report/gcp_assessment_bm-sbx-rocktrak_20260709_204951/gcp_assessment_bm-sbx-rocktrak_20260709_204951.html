@@ -1,0 +1,2363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GCP Security Assessment</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel-2:#1c2230; --border:#2a3140;
+    --txt:#e6edf3; --muted:#8b949e; --accent:#3b82f6;
+    --crit:#ef4444; --warn:#f59e0b; --info:#3b82f6; --ok:#22c55e;
+    --shadow:0 8px 24px rgba(0,0,0,.35);
+  }
+  body.light{
+    --bg:#f3f5f8; --panel:#ffffff; --panel-2:#f0f3f7; --border:#dfe4ea;
+    --txt:#1b232e; --muted:#5c6773; --shadow:0 8px 24px rgba(20,30,50,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+       transition:background .2s,color .2s}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+  header.top{display:flex;align-items:center;justify-content:space-between;
+             gap:16px;flex-wrap:wrap;margin-bottom:22px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .logo{width:44px;height:44px;border-radius:11px;
+        background:linear-gradient(135deg,#3b82f6,#8b5cf6);
+        display:flex;align-items:center;justify-content:center;font-size:22px}
+  .brand h1{font-size:20px;margin:0;letter-spacing:.3px}
+  .brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+  .toggle{cursor:pointer;border:1px solid var(--border);background:var(--panel);
+          color:var(--txt);border-radius:9px;padding:9px 14px;font-size:13px}
+  .toggle:hover{border-color:var(--accent)}
+  .meta{display:flex;gap:20px;flex-wrap:wrap;color:var(--muted);font-size:13px;
+        margin-bottom:20px}
+  .meta b{color:var(--txt)}
+  .posture{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;
+           border-radius:999px;font-weight:600;font-size:13px}
+  .posture.crit{background:rgba(239,68,68,.15);color:var(--crit)}
+  .posture.warn{background:rgba(245,158,11,.15);color:var(--warn)}
+  .posture.ok{background:rgba(34,197,94,.15);color:var(--ok)}
+
+  /* Tabs */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border);
+        margin-bottom:22px}
+  .tab{cursor:pointer;padding:11px 16px;border:none;background:none;color:var(--muted);
+       font-size:14px;border-bottom:2px solid transparent;transition:.15s;font-weight:500}
+  .tab:hover{color:var(--txt)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab .count{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;
+              border-radius:999px;font-size:11px;background:var(--panel-2);color:var(--muted)}
+  .panel{display:none;animation:fade .25s ease}
+  .panel.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* Cards */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+         gap:16px;margin-bottom:26px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+        padding:18px 20px;box-shadow:var(--shadow)}
+  .card .k{color:var(--muted);font-size:13px;margin-bottom:8px}
+  .card .v{font-size:32px;font-weight:700;line-height:1}
+  .card.c-crit .v{color:var(--crit)} .card.c-warn .v{color:var(--warn)}
+  .card.c-info .v{color:var(--info)} .card.c-total .v{color:var(--txt)}
+
+  /* Bar chart */
+  .chart{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+         padding:20px 22px;box-shadow:var(--shadow);margin-bottom:26px}
+  .chart h3{margin:0 0 16px;font-size:15px}
+  .bar-row{display:flex;align-items:center;gap:12px;margin:10px 0}
+  .bar-row .lbl{width:90px;font-size:13px;color:var(--muted)}
+  .bar-track{flex:1;background:var(--panel-2);border-radius:8px;height:22px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:8px;transition:width .6s ease;min-width:2px}
+  .bar-fill.crit{background:var(--crit)} .bar-fill.warn{background:var(--warn)}
+  .bar-fill.info{background:var(--info)}
+  .bar-row .num{width:40px;text-align:right;font-weight:600;font-size:14px}
+
+  /* Service breakdown */
+  .svc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  .svc{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .svc .h{display:flex;align-items:center;gap:9px;font-weight:600;margin-bottom:12px}
+  .svc .h .ico{font-size:18px}
+  .ico-svg{display:inline-block;width:1.15em;height:1.15em;
+           vertical-align:-.18em;object-fit:contain;flex:none}
+  .logo .ico-svg{width:24px;height:24px;filter:brightness(0) invert(1)}
+  h2 .ico-svg{width:1.1em;height:1.1em}
+  .svc .pips{display:flex;gap:14px;font-size:13px}
+  .svc .pip{display:flex;align-items:center;gap:5px;color:var(--muted)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .dot.crit{background:var(--crit)} .dot.warn{background:var(--warn)} .dot.info{background:var(--info)}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;background:var(--panel);
+        border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  thead th{text-align:left;padding:12px 14px;font-size:12px;letter-spacing:.5px;
+           text-transform:uppercase;color:var(--muted);background:var(--panel-2);
+           border-bottom:1px solid var(--border)}
+  tbody td{padding:13px 14px;border-bottom:1px solid var(--border);
+           font-size:14px;vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--panel-2)}
+  td.ttl{font-weight:600;white-space:nowrap}
+  td.res code{background:var(--panel-2);padding:2px 7px;border-radius:6px;
+              font-size:12.5px;word-break:break-all}
+  td.det{color:var(--muted);line-height:1.5}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;
+         font-weight:700;letter-spacing:.4px}
+  .badge.critical{background:rgba(239,68,68,.16);color:var(--crit)}
+  .badge.warning{background:rgba(245,158,11,.16);color:var(--warn)}
+  .badge.info{background:rgba(59,130,246,.16);color:var(--info)}
+  .empty{background:var(--panel);border:1px dashed var(--border);border-radius:12px;
+         padding:40px;text-align:center;color:var(--muted)}
+  .empty .big{font-size:40px;margin-bottom:8px}
+  .empty .ico-svg{width:44px;height:44px}
+  footer{margin-top:36px;text-align:center;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="brand"><div class="logo"><img class="ico-svg" src="icons/shield.svg" alt="shield"></div>
+    <div><h1>GCP Security Assessment</h1>
+      <p>Posture evaluation · project <b>bm-sbx-rocktrak</b></p></div>
+  </div>
+  <button class="toggle" onclick="toggleTheme()">🌗 Light/dark theme</button>
+</header>
+<div class="meta">
+  <span>Generated: <b>2026-07-09 20:56:43 UTC</b></span>
+  <span>Total findings: <b>328</b></span>
+  <span class="posture crit">Posture: HIGH RISK</span>
+</div>
+<div class="tabs">
+  <button class="tab active" onclick="showTab(event,'summary')"><img class="ico-svg" src="icons/summary.svg" alt="summary"> Executive Summary</button>
+  <button class="tab" onclick="showTab(event,'inventory')"><img class="ico-svg" src="icons/inventory.svg" alt="inventory"> Service Inventory<span class="count">86</span></button>
+  <button class="tab" onclick="showTab(event,'COMPUTE')"><img class="ico-svg" src="icons/compute.svg" alt="compute"> Compute / VPC<span class="count">106</span></button>
+  <button class="tab" onclick="showTab(event,'STORAGE')"><img class="ico-svg" src="icons/storage.svg" alt="storage"> Cloud Storage<span class="count">36</span></button>
+  <button class="tab" onclick="showTab(event,'IAM')"><img class="ico-svg" src="icons/iam.svg" alt="iam"> IAM & SA<span class="count">16</span></button>
+  <button class="tab" onclick="showTab(event,'FUNCTIONS')"><img class="ico-svg" src="icons/functions.svg" alt="functions"> Cloud Functions<span class="count">41</span></button>
+  <button class="tab" onclick="showTab(event,'RUN')"><img class="ico-svg" src="icons/run.svg" alt="run"> Cloud Run<span class="count">60</span></button>
+  <button class="tab" onclick="showTab(event,'PUBSUB')"><img class="ico-svg" src="icons/pubsub.svg" alt="pubsub"> Pub/Sub<span class="count">49</span></button>
+  <button class="tab" onclick="showTab(event,'SECRETS')"><img class="ico-svg" src="icons/secrets.svg" alt="secrets"> Secret Manager<span class="count">13</span></button>
+  <button class="tab" onclick="showTab(event,'ARTIFACTS')"><img class="ico-svg" src="icons/artifacts.svg" alt="artifacts"> Artifact Registry<span class="count">6</span></button>
+  <button class="tab" onclick="showTab(event,'BIGQUERY')"><img class="ico-svg" src="icons/bigquery.svg" alt="bigquery"> BigQuery<span class="count">1</span></button>
+  <button class="tab" onclick="showTab(event,'DNS')"><img class="ico-svg" src="icons/dns.svg" alt="dns"> Cloud DNS<span class="count">0</span></button>
+</div>
+<div id="summary" class="panel active">
+  <div class="cards">
+    <div class="card c-crit"><div class="k">Critical</div><div class="v">9</div></div>
+    <div class="card c-warn"><div class="k">Warnings</div><div class="v">86</div></div>
+    <div class="card c-info"><div class="k">Informational</div><div class="v">233</div></div>
+    <div class="card c-total"><div class="k">Total</div><div class="v">328</div></div>
+  </div>
+  <div class="chart"><h3>Distribution by severity</h3>
+    <div class="bar-row"><span class="lbl">Critical</span><div class="bar-track"><div class="bar-fill crit" style="width:3%"></div></div><span class="num">9</span></div>
+    <div class="bar-row"><span class="lbl">Warning</span><div class="bar-track"><div class="bar-fill warn" style="width:36%"></div></div><span class="num">86</span></div>
+    <div class="bar-row"><span class="lbl">Info</span><div class="bar-track"><div class="bar-fill info" style="width:100%"></div></div><span class="num">233</span></div>
+  </div>
+  <h3 style="margin:0 0 14px;font-size:15px">Breakdown by service</h3>
+  <div class="svc-grid">
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/compute.svg" alt="compute">Compute / VPC</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>3</span>
+        <span class="pip"><span class="dot warn"></span>50</span>
+        <span class="pip"><span class="dot info"></span>53</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/storage.svg" alt="storage">Cloud Storage</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>0</span>
+        <span class="pip"><span class="dot warn"></span>12</span>
+        <span class="pip"><span class="dot info"></span>24</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/iam.svg" alt="iam">IAM & SA</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>1</span>
+        <span class="pip"><span class="dot warn"></span>12</span>
+        <span class="pip"><span class="dot info"></span>3</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/functions.svg" alt="functions">Cloud Functions</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>0</span>
+        <span class="pip"><span class="dot warn"></span>0</span>
+        <span class="pip"><span class="dot info"></span>41</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/run.svg" alt="run">Cloud Run</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>5</span>
+        <span class="pip"><span class="dot warn"></span>12</span>
+        <span class="pip"><span class="dot info"></span>43</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/pubsub.svg" alt="pubsub">Pub/Sub</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>0</span>
+        <span class="pip"><span class="dot warn"></span>0</span>
+        <span class="pip"><span class="dot info"></span>49</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/secrets.svg" alt="secrets">Secret Manager</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>0</span>
+        <span class="pip"><span class="dot warn"></span>0</span>
+        <span class="pip"><span class="dot info"></span>13</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/artifacts.svg" alt="artifacts">Artifact Registry</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>0</span>
+        <span class="pip"><span class="dot warn"></span>0</span>
+        <span class="pip"><span class="dot info"></span>6</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/bigquery.svg" alt="bigquery">BigQuery</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>0</span>
+        <span class="pip"><span class="dot warn"></span>0</span>
+        <span class="pip"><span class="dot info"></span>1</span>
+      </div></div>
+    <div class="svc"><div class="h"><img class="ico-svg" src="icons/dns.svg" alt="dns">Cloud DNS</div>
+      <div class="pips">
+        <span class="pip"><span class="dot crit"></span>0</span>
+        <span class="pip"><span class="dot warn"></span>0</span>
+        <span class="pip"><span class="dot info"></span>0</span>
+      </div></div>
+  </div>
+</div>
+<div id="COMPUTE" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/compute.svg" alt="compute"> Compute / VPC</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Firewall rule open to the Internet</td>
+          <td class="res"><code>default-allow-icmp</code></td>
+          <td class="det">Ingress allowed from 0.0.0.0/0. Protocols/ports: icmp:*. Restrict source ranges to known CIDRs or use IAP.</td>
+        </tr>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Firewall rule open to the Internet</td>
+          <td class="res"><code>default-allow-rdp</code></td>
+          <td class="det">Ingress allowed from 0.0.0.0/0. Protocols/ports: tcp:3389. Restrict source ranges to known CIDRs or use IAP.</td>
+        </tr>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Firewall rule open to the Internet</td>
+          <td class="res"><code>default-allow-ssh</code></td>
+          <td class="det">Ingress allowed from 0.0.0.0/0. Protocols/ports: tcp:22. Restrict source ranges to known CIDRs or use IAP.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">OS Login not enforced project-wide</td>
+          <td class="res"><code>project/bm-sbx-rocktrak</code></td>
+          <td class="det">Project metadata enable-oslogin=unset. OS Login centralizes SSH access via IAM and 2FA; enable it project-wide (CIS 4.4).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Instance has full cloud-platform scope</td>
+          <td class="res"><code>typesense-central-xmrb (us-central1-a)</code></td>
+          <td class="det">The attached SA (typesense@bm-sbx-rocktrak.iam.gserviceaccount.com) is granted the broad cloud-platform scope. Scope access down to the specific APIs needed (CIS 4.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Instance has full cloud-platform scope</td>
+          <td class="res"><code>typesense-central-cv8m (us-central1-b)</code></td>
+          <td class="det">The attached SA (typesense@bm-sbx-rocktrak.iam.gserviceaccount.com) is granted the broad cloud-platform scope. Scope access down to the specific APIs needed (CIS 4.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Instance has full cloud-platform scope</td>
+          <td class="res"><code>typesense-central-fjcq (us-central1-b)</code></td>
+          <td class="det">The attached SA (typesense@bm-sbx-rocktrak.iam.gserviceaccount.com) is granted the broad cloud-platform scope. Scope access down to the specific APIs needed (CIS 4.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Instance has full cloud-platform scope</td>
+          <td class="res"><code>typesense-central-0nvz (us-central1-c)</code></td>
+          <td class="det">The attached SA (typesense@bm-sbx-rocktrak.iam.gserviceaccount.com) is granted the broad cloud-platform scope. Scope access down to the specific APIs needed (CIS 4.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Instance has full cloud-platform scope</td>
+          <td class="res"><code>typesense-central-fqq6 (us-central1-f)</code></td>
+          <td class="det">The attached SA (typesense@bm-sbx-rocktrak.iam.gserviceaccount.com) is granted the broad cloud-platform scope. Scope access down to the specific APIs needed (CIS 4.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Default VPC network present</td>
+          <td class="res"><code>default</code></td>
+          <td class="det">The auto-created default network ships with permissive firewall rules (allow SSH/RDP/ICMP from anywhere). Use custom-mode VPCs (CIS 3.1).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-central1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-west1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-east1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-east1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-northeast1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-southeast1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-east4)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (australia-southeast1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west3)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (southamerica-east1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-south1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (northamerica-northeast1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west4)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-north1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-west2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-east2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west6)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-northeast2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-northeast3)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-west3)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-west4)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-southeast2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-central2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (northamerica-northeast2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-south2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (australia-southeast2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (southamerica-west1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west8)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west9)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-east5)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-southwest1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (us-south1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (me-west1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west12)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (me-central1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-west10)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (me-central2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (africa-south1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (northamerica-south1)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (europe-north2)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">VPC flow logs disabled on subnet</td>
+          <td class="res"><code>default (asia-southeast3)</code></td>
+          <td class="det">enableFlowLogs is false. Flow logs are essential for network forensics and anomaly detection (CIS 3.9).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">OS Login not enabled on instance</td>
+          <td class="res"><code>typesense-central-xmrb (us-central1-a)</code></td>
+          <td class="det">Neither project nor instance metadata enables OS Login. SSH keys are managed in metadata rather than via IAM.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">OS Login not enabled on instance</td>
+          <td class="res"><code>typesense-central-cv8m (us-central1-b)</code></td>
+          <td class="det">Neither project nor instance metadata enables OS Login. SSH keys are managed in metadata rather than via IAM.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">OS Login not enabled on instance</td>
+          <td class="res"><code>typesense-central-fjcq (us-central1-b)</code></td>
+          <td class="det">Neither project nor instance metadata enables OS Login. SSH keys are managed in metadata rather than via IAM.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">OS Login not enabled on instance</td>
+          <td class="res"><code>typesense-central-0nvz (us-central1-c)</code></td>
+          <td class="det">Neither project nor instance metadata enables OS Login. SSH keys are managed in metadata rather than via IAM.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">OS Login not enabled on instance</td>
+          <td class="res"><code>typesense-central-fqq6 (us-central1-f)</code></td>
+          <td class="det">Neither project nor instance metadata enables OS Login. SSH keys are managed in metadata rather than via IAM.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Project-wide SSH keys not blocked</td>
+          <td class="res"><code>typesense-central-xmrb (us-central1-a)</code></td>
+          <td class="det">block-project-ssh-keys is not true; project-level SSH keys can log in to this VM. Set it to restrict access to instance-level keys (CIS 4.3).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Project-wide SSH keys not blocked</td>
+          <td class="res"><code>typesense-central-cv8m (us-central1-b)</code></td>
+          <td class="det">block-project-ssh-keys is not true; project-level SSH keys can log in to this VM. Set it to restrict access to instance-level keys (CIS 4.3).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Project-wide SSH keys not blocked</td>
+          <td class="res"><code>typesense-central-fjcq (us-central1-b)</code></td>
+          <td class="det">block-project-ssh-keys is not true; project-level SSH keys can log in to this VM. Set it to restrict access to instance-level keys (CIS 4.3).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Project-wide SSH keys not blocked</td>
+          <td class="res"><code>typesense-central-0nvz (us-central1-c)</code></td>
+          <td class="det">block-project-ssh-keys is not true; project-level SSH keys can log in to this VM. Set it to restrict access to instance-level keys (CIS 4.3).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Project-wide SSH keys not blocked</td>
+          <td class="res"><code>typesense-central-fqq6 (us-central1-f)</code></td>
+          <td class="det">block-project-ssh-keys is not true; project-level SSH keys can log in to this VM. Set it to restrict access to instance-level keys (CIS 4.3).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-central1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-west1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-east1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-east1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-northeast1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-southeast1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-east4)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (australia-southeast1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west3)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (southamerica-east1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-south1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (northamerica-northeast1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west4)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-north1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-west2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-east2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west6)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-northeast2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-northeast3)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-west3)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-west4)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-southeast2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-central2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (northamerica-northeast2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-south2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (australia-southeast2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (southamerica-west1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west8)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west9)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-east5)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-southwest1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (us-south1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (me-west1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west12)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (me-central1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-west10)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (me-central2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (africa-south1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (northamerica-south1)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (europe-north2)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Private Google Access disabled</td>
+          <td class="res"><code>default (asia-southeast3)</code></td>
+          <td class="det">privateIpGoogleAccess is false; VMs without external IPs cannot reach Google APIs privately, encouraging public IPs.</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="STORAGE" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/storage.svg" alt="storage"> Cloud Storage</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Public Access Prevention not enforced</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak-utils</code></td>
+          <td class="det">Current state: inherited. Set it to 'enforced' to block accidental public exposure (CIS 5.1).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Uniform bucket-level access disabled</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak-utils</code></td>
+          <td class="det">Object-level ACLs are still allowed, which bypass IAM and are hard to audit. Enable uniform bucket-level access (CIS 5.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Public Access Prevention not enforced</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak.firebasestorage.app</code></td>
+          <td class="det">Current state: inherited. Set it to 'enforced' to block accidental public exposure (CIS 5.1).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Uniform bucket-level access disabled</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak.firebasestorage.app</code></td>
+          <td class="det">Object-level ACLs are still allowed, which bypass IAM and are hard to audit. Enable uniform bucket-level access (CIS 5.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Public Access Prevention not enforced</td>
+          <td class="res"><code>gs://firebase-functions-src-1075904544537</code></td>
+          <td class="det">Current state: inherited. Set it to 'enforced' to block accidental public exposure (CIS 5.1).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Uniform bucket-level access disabled</td>
+          <td class="res"><code>gs://firebase-functions-src-1075904544537</code></td>
+          <td class="det">Object-level ACLs are still allowed, which bypass IAM and are hard to audit. Enable uniform bucket-level access (CIS 5.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Public Access Prevention not enforced</td>
+          <td class="res"><code>gs://gcf-v2-sources-1075904544537-us-central1</code></td>
+          <td class="det">Current state: inherited. Set it to 'enforced' to block accidental public exposure (CIS 5.1).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Uniform bucket-level access disabled</td>
+          <td class="res"><code>gs://gcf-v2-sources-1075904544537-us-central1</code></td>
+          <td class="det">Object-level ACLs are still allowed, which bypass IAM and are hard to audit. Enable uniform bucket-level access (CIS 5.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Public Access Prevention not enforced</td>
+          <td class="res"><code>gs://gcf-v2-uploads-1075904544537.us-central1.cloudfunctions.appspot.com</code></td>
+          <td class="det">Current state: inherited. Set it to 'enforced' to block accidental public exposure (CIS 5.1).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Uniform bucket-level access disabled</td>
+          <td class="res"><code>gs://gcf-v2-uploads-1075904544537.us-central1.cloudfunctions.appspot.com</code></td>
+          <td class="det">Object-level ACLs are still allowed, which bypass IAM and are hard to audit. Enable uniform bucket-level access (CIS 5.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Public Access Prevention not enforced</td>
+          <td class="res"><code>gs://run-sources-bm-sbx-rocktrak-us-central1</code></td>
+          <td class="det">Current state: inherited. Set it to 'enforced' to block accidental public exposure (CIS 5.1).</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Uniform bucket-level access disabled</td>
+          <td class="res"><code>gs://run-sources-bm-sbx-rocktrak-us-central1</code></td>
+          <td class="det">Object-level ACLs are still allowed, which bypass IAM and are hard to audit. Enable uniform bucket-level access (CIS 5.2).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No CMEK (Google-managed encryption)</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak-utils</code></td>
+          <td class="det">The bucket uses Google's default encryption. For regulated data, consider a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Object versioning disabled</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak-utils</code></td>
+          <td class="det">Versioning is off; overwritten or deleted objects cannot be recovered (ransomware / accidental deletion resilience).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Access/usage logging not configured</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak-utils</code></td>
+          <td class="det">No logging.logBucket is set; data-access to this bucket is not logged to a sink bucket.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No retention policy / bucket lock</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak-utils</code></td>
+          <td class="det">No retention policy is set. For audit/compliance data, a locked retention policy prevents premature deletion.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No CMEK (Google-managed encryption)</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak.firebasestorage.app</code></td>
+          <td class="det">The bucket uses Google's default encryption. For regulated data, consider a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Object versioning disabled</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak.firebasestorage.app</code></td>
+          <td class="det">Versioning is off; overwritten or deleted objects cannot be recovered (ransomware / accidental deletion resilience).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Access/usage logging not configured</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak.firebasestorage.app</code></td>
+          <td class="det">No logging.logBucket is set; data-access to this bucket is not logged to a sink bucket.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No retention policy / bucket lock</td>
+          <td class="res"><code>gs://bm-sbx-rocktrak.firebasestorage.app</code></td>
+          <td class="det">No retention policy is set. For audit/compliance data, a locked retention policy prevents premature deletion.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No CMEK (Google-managed encryption)</td>
+          <td class="res"><code>gs://firebase-functions-src-1075904544537</code></td>
+          <td class="det">The bucket uses Google's default encryption. For regulated data, consider a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Object versioning disabled</td>
+          <td class="res"><code>gs://firebase-functions-src-1075904544537</code></td>
+          <td class="det">Versioning is off; overwritten or deleted objects cannot be recovered (ransomware / accidental deletion resilience).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Access/usage logging not configured</td>
+          <td class="res"><code>gs://firebase-functions-src-1075904544537</code></td>
+          <td class="det">No logging.logBucket is set; data-access to this bucket is not logged to a sink bucket.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No retention policy / bucket lock</td>
+          <td class="res"><code>gs://firebase-functions-src-1075904544537</code></td>
+          <td class="det">No retention policy is set. For audit/compliance data, a locked retention policy prevents premature deletion.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No CMEK (Google-managed encryption)</td>
+          <td class="res"><code>gs://gcf-v2-sources-1075904544537-us-central1</code></td>
+          <td class="det">The bucket uses Google's default encryption. For regulated data, consider a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Object versioning disabled</td>
+          <td class="res"><code>gs://gcf-v2-sources-1075904544537-us-central1</code></td>
+          <td class="det">Versioning is off; overwritten or deleted objects cannot be recovered (ransomware / accidental deletion resilience).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Access/usage logging not configured</td>
+          <td class="res"><code>gs://gcf-v2-sources-1075904544537-us-central1</code></td>
+          <td class="det">No logging.logBucket is set; data-access to this bucket is not logged to a sink bucket.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No retention policy / bucket lock</td>
+          <td class="res"><code>gs://gcf-v2-sources-1075904544537-us-central1</code></td>
+          <td class="det">No retention policy is set. For audit/compliance data, a locked retention policy prevents premature deletion.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No CMEK (Google-managed encryption)</td>
+          <td class="res"><code>gs://gcf-v2-uploads-1075904544537.us-central1.cloudfunctions.appspot.com</code></td>
+          <td class="det">The bucket uses Google's default encryption. For regulated data, consider a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Object versioning disabled</td>
+          <td class="res"><code>gs://gcf-v2-uploads-1075904544537.us-central1.cloudfunctions.appspot.com</code></td>
+          <td class="det">Versioning is off; overwritten or deleted objects cannot be recovered (ransomware / accidental deletion resilience).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Access/usage logging not configured</td>
+          <td class="res"><code>gs://gcf-v2-uploads-1075904544537.us-central1.cloudfunctions.appspot.com</code></td>
+          <td class="det">No logging.logBucket is set; data-access to this bucket is not logged to a sink bucket.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No retention policy / bucket lock</td>
+          <td class="res"><code>gs://gcf-v2-uploads-1075904544537.us-central1.cloudfunctions.appspot.com</code></td>
+          <td class="det">No retention policy is set. For audit/compliance data, a locked retention policy prevents premature deletion.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No CMEK (Google-managed encryption)</td>
+          <td class="res"><code>gs://run-sources-bm-sbx-rocktrak-us-central1</code></td>
+          <td class="det">The bucket uses Google's default encryption. For regulated data, consider a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Object versioning disabled</td>
+          <td class="res"><code>gs://run-sources-bm-sbx-rocktrak-us-central1</code></td>
+          <td class="det">Versioning is off; overwritten or deleted objects cannot be recovered (ransomware / accidental deletion resilience).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Access/usage logging not configured</td>
+          <td class="res"><code>gs://run-sources-bm-sbx-rocktrak-us-central1</code></td>
+          <td class="det">No logging.logBucket is set; data-access to this bucket is not logged to a sink bucket.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No retention policy / bucket lock</td>
+          <td class="res"><code>gs://run-sources-bm-sbx-rocktrak-us-central1</code></td>
+          <td class="det">No retention policy is set. For audit/compliance data, a locked retention policy prevents premature deletion.</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="IAM" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/iam.svg" alt="iam"> IAM & SA</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Excessive primitive role</td>
+          <td class="res"><code>user:goutham.hanumanthu.ext@amrize.com</code></td>
+          <td class="det">Assignment of roles/owner (primitive role with very broad permissions). Apply least privilege.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Old SA key</td>
+          <td class="res"><code>google-play-store@bm-sbx-rocktrak.iam.gserviceaccount.com</code></td>
+          <td class="det">Key 45377e3dfd2b… is 258 days old (&gt; 90). Plan its rotation.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Old SA key</td>
+          <td class="res"><code>gitlab-ci@bm-sbx-rocktrak.iam.gserviceaccount.com</code></td>
+          <td class="det">Key 9d87e1b5c952… is 258 days old (&gt; 90). Plan its rotation.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Excessive primitive role</td>
+          <td class="res"><code>serviceAccount:1075904544537@cloudservices.gserviceaccount.com</code></td>
+          <td class="det">Assignment of roles/editor (primitive role with very broad permissions). Apply least privilege.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Excessive primitive role</td>
+          <td class="res"><code>user:goutham.hanumanthu.ext@amrize.com</code></td>
+          <td class="det">Assignment of roles/editor (primitive role with very broad permissions). Apply least privilege.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Excessive primitive role</td>
+          <td class="res"><code>serviceAccount:amz-atlantis-poc@amrz-test-project-62025.iam.gserviceaccount.com</code></td>
+          <td class="det">Assignment of roles/owner (primitive role with very broad permissions). Apply least privilege.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Privilege-escalation-prone role</td>
+          <td class="res"><code>serviceAccount:1075904544537-compute@developer.gserviceaccount.com</code></td>
+          <td class="det">Holds roles/iam.serviceAccountTokenCreator, which enables SA impersonation or IAM policy control and can be chained to project takeover. Restrict and add IAM Conditions.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Privilege-escalation-prone role</td>
+          <td class="res"><code>serviceAccount:cloud-run@bm-sbx-rocktrak.iam.gserviceaccount.com</code></td>
+          <td class="det">Holds roles/iam.serviceAccountTokenCreator, which enables SA impersonation or IAM policy control and can be chained to project takeover. Restrict and add IAM Conditions.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Privilege-escalation-prone role</td>
+          <td class="res"><code>serviceAccount:firebase-adminsdk-fbsvc@bm-sbx-rocktrak.iam.gserviceaccount.com</code></td>
+          <td class="det">Holds roles/iam.serviceAccountTokenCreator, which enables SA impersonation or IAM policy control and can be chained to project takeover. Restrict and add IAM Conditions.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Privilege-escalation-prone role</td>
+          <td class="res"><code>serviceAccount:service-1075904544537@gcp-sa-pubsub.iam.gserviceaccount.com</code></td>
+          <td class="det">Holds roles/iam.serviceAccountTokenCreator, which enables SA impersonation or IAM policy control and can be chained to project takeover. Restrict and add IAM Conditions.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Privilege-escalation-prone role</td>
+          <td class="res"><code>group:rocktrak-devs@amrize.com</code></td>
+          <td class="det">Holds roles/iam.serviceAccountUser, which enables SA impersonation or IAM policy control and can be chained to project takeover. Restrict and add IAM Conditions.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Privilege-escalation-prone role</td>
+          <td class="res"><code>serviceAccount:gitlab-ci@bm-sbx-rocktrak.iam.gserviceaccount.com</code></td>
+          <td class="det">Holds roles/iam.serviceAccountUser, which enables SA impersonation or IAM policy control and can be chained to project takeover. Restrict and add IAM Conditions.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Data-access audit logs not fully enabled</td>
+          <td class="res"><code>project/bm-sbx-rocktrak</code></td>
+          <td class="det">allServices audit config does not enable both DATA_READ and DATA_WRITE (found: none). Enable them for a complete audit trail (CIS 2.1).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">User-managed SA key present</td>
+          <td class="res"><code>iota-production-telemetry@bm-sbx-rocktrak.iam.gserviceaccount.com</code></td>
+          <td class="det">1 user-managed key(s) exist. These are long-lived static credentials; prefer Workload Identity Federation or short-lived tokens (CIS 1.4).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">User-managed SA key present</td>
+          <td class="res"><code>google-play-store@bm-sbx-rocktrak.iam.gserviceaccount.com</code></td>
+          <td class="det">1 user-managed key(s) exist. These are long-lived static credentials; prefer Workload Identity Federation or short-lived tokens (CIS 1.4).</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">User-managed SA key present</td>
+          <td class="res"><code>gitlab-ci@bm-sbx-rocktrak.iam.gserviceaccount.com</code></td>
+          <td class="det">1 user-managed key(s) exist. These are long-lived static credentials; prefer Workload Identity Federation or short-lived tokens (CIS 1.4).</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="FUNCTIONS" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/functions.svg" alt="functions"> Cloud Functions</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>typesenseSync (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>anniversaryNotification (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>userEdit (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>transferSiteWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>apexData (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>pretripUpdated (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>pubsubProductionLocations (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>apexTicket (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>jobWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>pretripDeleted (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>confirmEmail (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>beforeUserRegistered (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>truckWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>productWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>updateTripData (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>userCreate (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>locationWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>autoClockOutUsers (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>trailerTypeWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>locationLogWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>emailOpen (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>pubsubProductionScales (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>userUpdated (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>userResetPasswordSubmit (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>typesenseRotateApiKeys (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>pubsubProductionTelemetry (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>updateRemoteConfig (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>departmentWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>trailerWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>typesenseRotateKeysManual (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>truckTypeWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>bulkImport (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>tripWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>customerWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>pretripCreated (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>beforeUserLogin (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>runReport (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>userChangePassword (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>userResetPassword (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>shiftWritten (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector (egress not controlled)</td>
+          <td class="res"><code>organizationCreated (us-central1)</code></td>
+          <td class="det">The function has no Serverless VPC connector; egress is not routed through your VPC controls.</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="RUN" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/run.svg" alt="run"> Cloud Run</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Publicly invokable service</td>
+          <td class="res"><code>beforeuserlogin (us-central1)</code></td>
+          <td class="det">Granted to allUsers/allAuthenticatedUsers with roles: roles/run.invoker. If unintended, restrict access.</td>
+        </tr>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Publicly invokable service</td>
+          <td class="res"><code>beforeuserregistered (us-central1)</code></td>
+          <td class="det">Granted to allUsers/allAuthenticatedUsers with roles: roles/run.invoker. If unintended, restrict access.</td>
+        </tr>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Publicly invokable service</td>
+          <td class="res"><code>emailopen (us-central1)</code></td>
+          <td class="det">Granted to allUsers/allAuthenticatedUsers with roles: roles/run.invoker. If unintended, restrict access.</td>
+        </tr>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Publicly invokable service</td>
+          <td class="res"><code>typesenserotatekeysmanual (us-central1)</code></td>
+          <td class="det">Granted to allUsers/allAuthenticatedUsers with roles: roles/run.invoker. If unintended, restrict access.</td>
+        </tr>
+        <tr>
+          <td><span class="badge critical">CRITICAL</span></td>
+          <td class="ttl">Publicly invokable service</td>
+          <td class="res"><code>updateremoteconfig (us-central1)</code></td>
+          <td class="det">Granted to allUsers/allAuthenticatedUsers with roles: roles/run.invoker. If unintended, restrict access.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>anniversarynotification (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>apexdata (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>apexticket (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>confirmemail (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>emailopen (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>pretripcreated (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>updatetripdata (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>userchangepassword (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>usercreate (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>useredit (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>userresetpassword (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge warning">WARNING</span></td>
+          <td class="ttl">Possible secret in environment variable</td>
+          <td class="res"><code>userresetpasswordsubmit (us-central1)</code></td>
+          <td class="det">An env var name suggests a credential. Reference Secret Manager secrets instead of embedding them in the revision.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>anniversarynotification (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>apexdata (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>apexticket (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>autoclockoutusers (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>beforeuserlogin (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>beforeuserregistered (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>bulkimport (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>confirmemail (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>customerwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>departmentwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>emailopen (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>jobwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>locationlogwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>locationwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>organizationcreated (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>pretripcreated (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>pretripdeleted (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>pretripupdated (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>productwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>pubsubproductionlocations (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>pubsubproductionscales (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>pubsubproductiontelemetry (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>runreport (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Ingress = all</td>
+          <td class="res"><code>sendsns (us-central1)</code></td>
+          <td class="det">The service accepts traffic from the Internet (ingress=all). Consider 'internal' or 'internal-and-cloud-load-balancing'.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>sendsns (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>shiftwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>trailertypewritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>trailerwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>transfersitewritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>tripwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>trucktypewritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>truckwritten (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>typesenserotateapikeys (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>typesenserotatekeysmanual (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>typesensesync (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>updateremoteconfig (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>updatetripdata (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>userchangepassword (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>usercreate (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>useredit (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>userresetpassword (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>userresetpasswordsubmit (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No VPC connector configured</td>
+          <td class="res"><code>userupdated (us-central1)</code></td>
+          <td class="det">Egress is not routed through a Serverless VPC connector, bypassing VPC firewall/egress controls.</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="PUBSUB" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/pubsub.svg" alt="pubsub"> Pub/Sub</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-bulkimport-161792-535</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>container-analysis-occurrences-v1beta1</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>container-analysis-notes-v1beta1</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>container-analysis-notes-v1</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>container-analysis-occurrences-v1</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-trucktypewritten-717690-330</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-organizationcreated-800827-435</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-tripwritten-998674-950</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-jobwritten-405772-581</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-trailerwritten-661428-146</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-locationwritten-747010-541</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-truckwritten-282793-204</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-locationlogwritten-377271-238</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-transfersitewritten-581740-473</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-trailertypewritten-468756-064</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-customerwritten-104370-859</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-productwritten-635450-554</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-userupdated-131960-509</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-departmentwritten-754037-828</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-shiftwritten-743172-930</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-pretripcreated-360103-360</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-pretripupdated-348735-409</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>eventarc-us-central1-pretripdeleted-064818-302</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>rocktrak-production-scales</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>rocktrak-production-telemetry</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Topic without CMEK</td>
+          <td class="res"><code>rocktrak-production-locations</code></td>
+          <td class="det">Messages use Google-managed encryption. For regulated data, configure a CMEK key on the topic.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-bulkimport-161792-sub-439</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-trucktypewritten-717690-sub-589</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-organizationcreated-800827-sub-264</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-tripwritten-998674-sub-874</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-locationlogwritten-377271-sub-116</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-transfersitewritten-581740-sub-213</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-productwritten-635450-sub-485</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-truckwritten-282793-sub-846</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-trailertypewritten-468756-sub-537</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-userupdated-131960-sub-178</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-jobwritten-405772-sub-183</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-customerwritten-104370-sub-601</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-trailerwritten-661428-sub-753</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-locationwritten-747010-sub-277</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-pretripupdated-348735-sub-153</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-pretripdeleted-064818-sub-441</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-pretripcreated-360103-sub-951</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-shiftwritten-743172-sub-285</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-departmentwritten-754037-sub-874</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>bigquery-telemetry</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-pubsubproductionscales-817848-sub-400</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-pubsubproductionlocations-347712-sub-054</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Subscription without dead-letter topic</td>
+          <td class="res"><code>eventarc-us-central1-pubsubproductiontelemetry-749720-sub-777</code></td>
+          <td class="det">No dead-letter policy; undeliverable messages are lost after retries, hindering incident analysis.</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="SECRETS" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/secrets.svg" alt="secrets"> Secret Manager</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>BM_SBX_GCP_ROCKTRAK_APEX</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>GOOGLE_MAPS_API_KEY</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>SENDGRID_API_KEY</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>SENDGRID_WEBHOOK_SECRET</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>SENTINEL_ONE_TOKEN</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>TYPESENSE_ADMIN_KEY</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>TYPESENSE_BASE_SEARCH_KEY</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>TYPESENSE_INTERNAL_NODES</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>TYPESENSE_NODE_KEYS</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>TYPESENSE_SCOPED_API_KEY</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>bm-sbx-gitlab-ci-sa</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>bm-sbx-iota-production-telemetry-sa</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No rotation policy</td>
+          <td class="res"><code>bm-sbx-test-secret</code></td>
+          <td class="det">No automatic rotation configured; long-lived secrets increase blast radius if leaked.</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="ARTIFACTS" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/artifacts.svg" alt="artifacts"> Artifact Registry</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Repository without CMEK</td>
+          <td class="res"><code>cloud-run-source-deploy (europe-west1)</code></td>
+          <td class="det">Uses Google-managed encryption. For sensitive images/artifacts, configure a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No cleanup policies</td>
+          <td class="res"><code>cloud-run-source-deploy (europe-west1)</code></td>
+          <td class="det">No cleanup policies defined; stale/vulnerable image versions accumulate indefinitely. Define retention/cleanup rules.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Repository without CMEK</td>
+          <td class="res"><code>cloud-run-source-deploy (us-central1)</code></td>
+          <td class="det">Uses Google-managed encryption. For sensitive images/artifacts, configure a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No cleanup policies</td>
+          <td class="res"><code>cloud-run-source-deploy (us-central1)</code></td>
+          <td class="det">No cleanup policies defined; stale/vulnerable image versions accumulate indefinitely. Define retention/cleanup rules.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Repository without CMEK</td>
+          <td class="res"><code>gcf-artifacts (us-central1)</code></td>
+          <td class="det">Uses Google-managed encryption. For sensitive images/artifacts, configure a CMEK key.</td>
+        </tr>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">No cleanup policies</td>
+          <td class="res"><code>gcf-artifacts (us-central1)</code></td>
+          <td class="det">No cleanup policies defined; stale/vulnerable image versions accumulate indefinitely. Define retention/cleanup rules.</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="BIGQUERY" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/bigquery.svg" alt="bigquery"> BigQuery</h2>
+  <table><thead><tr>
+    <th>Severity</th><th>Finding</th><th>Resource</th><th>Detail</th>
+  </tr></thead><tbody>
+        <tr>
+          <td><span class="badge info">INFO</span></td>
+          <td class="ttl">Dataset without default CMEK</td>
+          <td class="res"><code>rocktrak</code></td>
+          <td class="det">No default CMEK key set for the dataset; tables use Google-managed encryption (CIS 7.2).</td>
+        </tr>
+  </tbody></table>
+</div>
+<div id="DNS" class="panel">
+  <h2 style="font-size:18px;margin:0 0 16px"><img class="ico-svg" src="icons/dns.svg" alt="dns"> Cloud DNS</h2>
+  <div class="empty"><div class="big"><img class="ico-svg" src="icons/ok.svg" alt="ok"></div>No security findings for this service.</div>
+</div>
+<div id="inventory" class="panel">
+  <h2 style="font-size:18px;margin:0 0 6px"><img class="ico-svg" src="icons/inventory.svg" alt="inventory"> Service Inventory</h2>
+  <p style="color:var(--muted);margin:0 0 16px;font-size:14px">All enabled APIs detected as active in the project. Deep scanning applies to supported services; the rest are listed for full visibility.</p>
+  <table><thead><tr><th>Service (API)</th><th>Coverage</th></tr></thead><tbody>
+    <tr><td class="res"><code>artifactregistry.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>bigquery.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>cloudfunctions.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>compute.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>dns.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>iam.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>pubsub.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>run.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>secretmanager.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>storage.googleapis.com</code></td><td><span class="badge info">DEEP SCAN</span></td></tr>
+    <tr><td class="res"><code>aiplatform.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>analyticshub.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>androidpublisher.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>appengine.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>bigqueryconnection.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>bigquerydatapolicy.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>bigquerydatatransfer.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>bigquerymigration.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>bigqueryreservation.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>bigquerystorage.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>certificatemanager.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>cloudaicompanion.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>cloudapis.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>cloudasset.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>cloudbilling.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>cloudbuild.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>cloudresourcemanager.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>cloudscheduler.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>cloudtrace.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>containeranalysis.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>containerregistry.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>containerscanning.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>containerthreatdetection.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>dataform.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>dataplex.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>datastore.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>deploymentmanager.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>developerconnect.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>eventarc.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>fcm.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>fcmregistrations.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebase.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebaseappcheck.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebaseappdistribution.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebaseapphosting.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebasedatabase.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebaseextensions.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebasehosting.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebaseinstallations.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebaseremoteconfig.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebaseremoteconfigrealtime.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebaserules.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firebasestorage.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>firestore.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>geminicloudassist.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>geminidataanalytics.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>geocoding-backend.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>iamcredentials.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>identitytoolkit.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>logging.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>maps-android-backend.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>maps-backend.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>maps-ios-backend.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>monitoring.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>navigationsdk.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>osconfig.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>oslogin.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>places.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>playintegrity.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>privilegedaccessmanager.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>recaptchaenterprise.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>roads.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>routes.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>runtimeconfig.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>securetoken.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>servicemanagement.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>serviceusage.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>source.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>sql-component.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>storage-api.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>storage-component.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>sts.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>telemetry.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>testing.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>weather.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+    <tr><td class="res"><code>websecurityscanner.googleapis.com</code></td><td><span class="badge warning">INVENTORY ONLY</span></td></tr>
+  </tbody></table>
+</div>
+<footer>
+  Report generated by GCP Security Assessment · Project-level scan (no Cloud Asset Inventory, no organization-level permissions).
+</footer>
+</div>
+<script>
+  function showTab(ev, id){
+    document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+    ev.currentTarget.classList.add('active');
+  }
+  function toggleTheme(){ document.body.classList.toggle('light'); }
+</script>
+</body>
+</html>
