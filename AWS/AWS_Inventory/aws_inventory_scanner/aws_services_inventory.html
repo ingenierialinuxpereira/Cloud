@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS Services Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f8fafc; --surface:#ffffff; --surface-2:#f1f5f9;
+    --text:#0f172a; --text-muted:#64748b; --border:#e2e8f0;
+    --accent:#d97706; --accent-soft:#fef3c7;
+    --green:#059669; --green-bg:#d1fae5;
+    --amber:#b45309; --amber-bg:#fef3c7;
+    --gray:#475569;  --gray-bg:#e2e8f0;
+    --shadow:0 1px 3px rgba(15,23,42,.08),0 4px 14px rgba(15,23,42,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f172a; --surface:#1e293b; --surface-2:#293548;
+      --text:#f1f5f9; --text-muted:#94a3b8; --border:#334155;
+      --accent:#fbbf24; --accent-soft:#453411;
+      --green:#34d399; --green-bg:#064e3b;
+      --amber:#fbbf24; --amber-bg:#453411;
+      --gray:#cbd5e1;  --gray-bg:#334155;
+      --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+       font-family:'Inter',system-ui,-apple-system,sans-serif;
+       font-size:15px;line-height:1.55;padding:32px 20px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header.hero{margin-bottom:28px}
+  .hero h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
+  .hero p{color:var(--text-muted);margin-top:4px;font-size:14px}
+  .hero code{font-family:'JetBrains Mono',monospace;font-size:13px;
+             background:var(--surface-2);padding:2px 7px;border-radius:6px}
+  .hero-row{display:flex;align-items:center;gap:14px}
+  .hero-row img{width:44px;height:44px}
+
+  /* --- key metrics grid --- */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+           gap:14px;margin:22px 0 30px}
+  .metric{background:var(--surface);border:1px solid var(--border);
+          border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+  .metric img{width:24px;height:24px;margin-bottom:8px;display:block}
+  .metric .num{font-size:30px;font-weight:800;letter-spacing:-.03em}
+  .metric .lbl{color:var(--text-muted);font-size:12.5px;font-weight:600;
+               text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+  .metric.m-active .num{color:var(--green)}
+  .metric.m-empty .num{color:var(--text-muted)}
+
+  /* --- tabs --- */
+  .tabbar{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--border);
+          padding-bottom:10px;margin-bottom:22px}
+  .tabbar button{font:inherit;font-weight:600;font-size:13.5px;cursor:pointer;
+          color:var(--text-muted);background:transparent;border:1px solid transparent;
+          padding:7px 14px;border-radius:9px;transition:all .15s ease}
+  .tabbar button:hover{background:var(--surface-2);color:var(--text)}
+  .tabbar button.active{background:var(--accent-soft);color:var(--accent);
+          border-color:var(--accent)}
+  .panel{display:none;animation:fade .18s ease}
+  .panel.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* --- tables --- */
+  .card{background:var(--surface);border:1px solid var(--border);
+        border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:22px}
+  .card h2{font-size:16px;font-weight:700;padding:16px 20px;
+           border-bottom:1px solid var(--border)}
+  .card h2 small{color:var(--text-muted);font-weight:500;font-size:13px;margin-left:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{background:var(--surface-2);color:var(--text-muted);text-align:left;
+     font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+     padding:10px 20px}
+  td{padding:11px 20px;border-top:1px solid var(--border);vertical-align:middle}
+  td.api{font-family:'JetBrains Mono',monospace;font-size:13px}
+  tr:hover td{background:var(--surface-2)}
+
+  /* --- badges --- */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;
+         font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .badge img{width:12px;height:12px;display:block}
+  .b-active{color:var(--green);background:var(--green-bg)}
+  .b-empty{color:var(--amber);background:var(--amber-bg)}
+  .detail{color:var(--text-muted);font-size:13px}
+  .projlink{color:var(--accent);cursor:pointer;font-weight:600;
+            background:none;border:none;font:inherit;padding:0}
+  .projlink:hover{text-decoration:underline}
+  footer{margin-top:34px;color:var(--text-muted);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero"><div class="hero-row"><img src="icons/logo-cloud.svg" alt="AWS Inventory logo"><h1>AWS Services Inventory</h1></div><p>Deep resource scan | 2026-07-09 15:07:59 UTC | account <code>123456789012</code> | AWS Config / CloudTrail <strong>not</strong> used</p></header>
+<div class="metrics">
+<div class="metric"><img src="icons/metric-regions.svg" alt=""><div class="num">2</div><div class="lbl">Regions Scanned</div></div>
+<div class="metric"><img src="icons/metric-checks.svg" alt=""><div class="num">20</div><div class="lbl">Services Checked</div></div>
+<div class="metric m-active"><img src="icons/metric-active.svg" alt=""><div class="num">10</div><div class="lbl">Active Resource Services</div></div>
+<div class="metric m-empty"><img src="icons/metric-empty.svg" alt=""><div class="num">10</div><div class="lbl">No Resources Found</div></div>
+</div>
+<nav class="tabbar"><button class="active" data-target="summary">Executive Summary</button>
+<button data-target="cat-0">Compute &amp; Containers</button>
+<button data-target="cat-1">AI &amp; Machine Learning</button>
+<button data-target="cat-2">Serverless</button>
+<button data-target="cat-3">Messaging &amp; Integration</button>
+<button data-target="cat-4">Databases</button>
+<button data-target="cat-5">Web &amp; Mobile</button>
+<button data-target="cat-6">Storage &amp; CDN</button>
+</nav>
+<section class="panel active" id="summary">
+<div class="card"><h2>Services by Category <small>click a category to open its tab</small></h2>
+<table><thead><tr><th>Category</th><th>Checks</th><th>Active w/ Resources</th><th>No Resources</th></tr></thead><tbody>
+<tr><td><button class="projlink" onclick="showTab('cat-0')">Compute &amp; Containers</button></td><td>6</td><td><span class="badge b-active">2</span></td><td><span class="badge b-empty">4</span></td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-1')">AI &amp; Machine Learning</button></td><td>2</td><td><span class="badge b-active">1</span></td><td><span class="badge b-empty">1</span></td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-2')">Serverless</button></td><td>2</td><td><span class="badge b-active">1</span></td><td><span class="badge b-empty">1</span></td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-3')">Messaging &amp; Integration</button></td><td>2</td><td><span class="badge b-active">1</span></td><td><span class="badge b-empty">1</span></td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-4')">Databases</button></td><td>4</td><td><span class="badge b-active">2</span></td><td><span class="badge b-empty">2</span></td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-5')">Web &amp; Mobile</button></td><td>2</td><td><span class="badge b-active">1</span></td><td><span class="badge b-empty">1</span></td></tr>
+<tr><td><button class="projlink" onclick="showTab('cat-6')">Storage &amp; CDN</button></td><td>2</td><td><span class="badge b-active">2</span></td><td><span class="badge b-empty">0</span></td></tr>
+</tbody></table></div>
+<div class="card"><h2>Regions <small>per-region rollup</small></h2>
+<table><thead><tr><th>Region</th><th>Services Checked</th><th>Active w/ Resources</th><th>No Resources</th></tr></thead><tbody>
+<tr><td>us-east-1</td><td>9</td><td><span class="badge b-active">6</span></td><td><span class="badge b-empty">3</span></td></tr>
+<tr><td>eu-west-1</td><td>9</td><td><span class="badge b-active">2</span></td><td><span class="badge b-empty">7</span></td></tr>
+<tr><td>Global</td><td>2</td><td><span class="badge b-active">2</span></td><td><span class="badge b-empty">0</span></td></tr>
+</tbody></table></div>
+</section>
+<section class="panel" id="cat-0">
+<div class="card"><h2>Compute &amp; Containers <small>6 checks | 2 active | 4 empty</small></h2>
+<table><thead><tr><th>Region</th><th>Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>us-east-1</td><td class="api">eks</td><td>Amazon EKS (Kubernetes)</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">2 cluster(s)</td></tr>
+<tr><td>us-east-1</td><td class="api">ec2</td><td>Amazon EC2 (Compute)</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">4 EC2 instance(s) (non-terminated)</td></tr>
+<tr><td>us-east-1</td><td class="api">ecs</td><td>Amazon ECS (Containers)</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 ECS cluster(s)</td></tr>
+<tr><td>eu-west-1</td><td class="api">eks</td><td>Amazon EKS (Kubernetes)</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 cluster(s)</td></tr>
+<tr><td>eu-west-1</td><td class="api">ec2</td><td>Amazon EC2 (Compute)</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 EC2 instance(s) (non-terminated)</td></tr>
+<tr><td>eu-west-1</td><td class="api">ecs</td><td>Amazon ECS (Containers)</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 ECS cluster(s)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-1">
+<div class="card"><h2>AI &amp; Machine Learning <small>2 checks | 1 active | 1 empty</small></h2>
+<table><thead><tr><th>Region</th><th>Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>us-east-1</td><td class="api">sagemaker</td><td>Amazon SageMaker (AI/ML)</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 endpoint(s), 0 model(s)</td></tr>
+<tr><td>eu-west-1</td><td class="api">sagemaker</td><td>Amazon SageMaker (AI/ML)</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">1 endpoint(s), 3 model(s)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-2">
+<div class="card"><h2>Serverless <small>2 checks | 1 active | 1 empty</small></h2>
+<table><thead><tr><th>Region</th><th>Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>us-east-1</td><td class="api">lambda</td><td>AWS Lambda</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">3 function(s)</td></tr>
+<tr><td>eu-west-1</td><td class="api">lambda</td><td>AWS Lambda</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 function(s)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-3">
+<div class="card"><h2>Messaging &amp; Integration <small>2 checks | 1 active | 1 empty</small></h2>
+<table><thead><tr><th>Region</th><th>Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>us-east-1</td><td class="api">sns+sqs</td><td>SNS / SQS (Messaging)</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">2 SNS topic(s), 1 SQS queue(s)</td></tr>
+<tr><td>eu-west-1</td><td class="api">sns+sqs</td><td>SNS / SQS (Messaging)</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 SNS topic(s), 0 SQS queue(s)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-4">
+<div class="card"><h2>Databases <small>4 checks | 2 active | 2 empty</small></h2>
+<table><thead><tr><th>Region</th><th>Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>us-east-1</td><td class="api">rds</td><td>Amazon RDS (Databases)</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">1 DB instance(s)</td></tr>
+<tr><td>us-east-1</td><td class="api">dynamodb</td><td>Amazon DynamoDB</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">2 table(s)</td></tr>
+<tr><td>eu-west-1</td><td class="api">rds</td><td>Amazon RDS (Databases)</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 DB instance(s)</td></tr>
+<tr><td>eu-west-1</td><td class="api">dynamodb</td><td>Amazon DynamoDB</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 table(s)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-5">
+<div class="card"><h2>Web &amp; Mobile <small>2 checks | 1 active | 1 empty</small></h2>
+<table><thead><tr><th>Region</th><th>Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>us-east-1</td><td class="api">amplify</td><td>AWS Amplify</td><td><span class="badge b-empty"><img src="icons/status-empty.svg" alt="">No Active Resources Found</span></td><td class="detail">0 Amplify app(s)</td></tr>
+<tr><td>eu-west-1</td><td class="api">amplify</td><td>AWS Amplify</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">1 Amplify app(s)</td></tr>
+</tbody></table></div></section>
+<section class="panel" id="cat-6">
+<div class="card"><h2>Storage &amp; CDN <small>2 checks | 2 active | 0 empty</small></h2>
+<table><thead><tr><th>Region</th><th>Service</th><th>Deep Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+<tr><td>Global</td><td class="api">s3</td><td>Amazon S3 (Storage)</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">5 bucket(s)</td></tr>
+<tr><td>Global</td><td class="api">cloudfront</td><td>Amazon CloudFront (CDN)</td><td><span class="badge b-active"><img src="icons/status-active.svg" alt="">Active with Resources</span></td><td class="detail">1 distribution(s)</td></tr>
+</tbody></table></div></section>
+<footer>Generated by aws_inventory_scan.sh v1.2.0 | Author: DevOps Engineering Team | read-only scan | no AWS Config or CloudTrail used</footer>
+</div><!-- /wrap -->
+<script>
+  // Lightweight pure-JS tab switcher
+  function showTab(id, btn){
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tabbar button').forEach(b => b.classList.remove('active'));
+    var panel = document.getElementById(id);
+    if (panel) panel.classList.add('active');
+    if (btn) {
+      btn.classList.add('active');
+    } else {
+      var match = document.querySelector('.tabbar button[data-target="'+id+'"]');
+      if (match) match.classList.add('active');
+    }
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  document.querySelectorAll('.tabbar button').forEach(function(b){
+    b.addEventListener('click', function(){ showTab(b.dataset.target, b); });
+  });
+</script>
+</body>
+</html>
